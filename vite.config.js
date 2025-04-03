@@ -36,6 +36,10 @@ const copyFiles = {
       src: 'public/locales',
       dest: 'public/',
     },
+    {
+      src: '404.html',
+      dest: '',
+    },
   ],
 };
 
@@ -69,8 +73,8 @@ export default defineConfig({
       },
       devOptions: {
         enabled: true,
-        type: 'module'
-      }
+        type: 'module',
+      },
     }),
   ],
   optimizeDeps: {
