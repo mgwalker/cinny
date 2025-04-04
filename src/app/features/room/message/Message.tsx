@@ -32,7 +32,7 @@ import React, {
 } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useHover, useFocusWithin } from 'react-aria';
-import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
 import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
@@ -62,6 +62,7 @@ import { MessageLayout, MessageSpacing } from '../../../state/settings';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useRecentEmoji } from '../../../hooks/useRecentEmoji';
 import * as css from './styles.css';
+import { ThreadIndicatorIcon } from '../../../../app/components/message/Reply.css';
 import { EventReaders } from '../../../components/event-readers';
 import { TextViewer } from '../../../components/text-viewer';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
@@ -678,6 +679,7 @@ export type MessageProps = {
   powerLevelTag?: PowerLevelTag;
   accessibleTagColors?: Map<string, string>;
   legacyUsernameColor?: boolean;
+  threadRootId?: string;
 };
 export const Message = as<'div', MessageProps>(
   (
@@ -707,6 +709,7 @@ export const Message = as<'div', MessageProps>(
       accessibleTagColors,
       legacyUsernameColor,
       children,
+      threadRootId,
       ...props
     },
     ref
@@ -913,12 +916,28 @@ export const Message = as<'div', MessageProps>(
                 <IconButton
                   onClick={onReplyClick}
                   data-event-id={mEvent.getId()}
+                  data-relation-type={threadRootId ? RelationType.Thread : null}
+                  data-thread-root-id={threadRootId}
                   variant="SurfaceVariant"
                   size="300"
                   radii="300"
                 >
                   <Icon src={Icons.ReplyArrow} size="100" />
                 </IconButton>
+                { /**/}
+                {threadRootId ? null : (
+                  <IconButton
+                    onClick={onReplyClick}
+                    data-event-id={mEvent.getId()}
+                    data-relation-type={RelationType.Thread}
+                    data-thread-root-id={mEvent.getId()}
+                    variant="SurfaceVariant"
+                    size="300"
+                    radii="300"
+                  >
+                    <Icon className={ThreadIndicatorIcon} src={Icons.Message} />
+                  </IconButton>
+                )}
                 {canEditEvent(mx, mEvent) && onEditId && (
                   <IconButton
                     onClick={() => onEditId(mEvent.getId())}

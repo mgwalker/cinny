@@ -19,6 +19,7 @@ import {
   IContent,
   MatrixClient,
   MatrixEvent,
+  RelationType,
   Room,
   RoomEvent,
   RoomEventHandlerMap,
@@ -933,17 +934,49 @@ export function RoomTimeline({
 
   const handleReplyClick: MouseEventHandler<HTMLButtonElement> = useCallback(
     (evt) => {
-      const replyId = evt.currentTarget.getAttribute('data-event-id');
+      // Get relevant information from the clicked button.
+      const { eventId: replyId, relationType, threadRootId } = evt.currentTarget.dataset;
+
       if (!replyId) {
         console.warn('Button should have "data-event-id" attribute!');
         return;
       }
+
       const replyEvt = room.findEventById(replyId);
       if (!replyEvt) return;
       const editedReply = getEditedEvent(replyId, replyEvt, room.getUnfilteredTimelineSet());
       const content: IContent = editedReply?.getContent()['m.new_content'] ?? replyEvt.getContent();
       const { body, formatted_body: formattedBody } = content;
-      const { 'm.relates_to': relation } = replyEvt.getWireContent();
+
+      // Wrap this assignment in an IIFE just so we don't have a lot of junk
+      // temporary variables in scope.
+      const relation = (() => {
+        const { 'm.relates_to': messageRelation } = replyEvt.getWireContent();
+
+        // If there is no existing relation *AND* the relation type is a thread,
+        // then we can hand-build a relation.
+        if (!messageRelation && relationType === RelationType.Thread) {
+          return {
+            // If we have a thread root ID, use that as the event that this
+            // message is related to. Otherwise, use the ID of the event we're
+            // replying to and it'll become the thread root.
+            event_id: threadRootId?.length ? replyId : threadRootId,
+
+            // m.in_reply_to is a fallback mechanism for clients that don't
+            // support threads. It should refer to the actual event being
+            // replied to, not the thread.
+            'm.in_reply_to': { event_id: replyId },
+
+            // Set the relationship type.
+            rel_type: RelationType.Thread,
+          };
+        }
+
+        // If there is a preexisting relation or the relation type is not
+        // a thread, just keep whatever we got.
+        return messageRelation;
+      })();
+
       const senderId = replyEvt.getSender();
       if (senderId && typeof body === 'string') {
         setReplyDraft({
@@ -1037,6 +1070,7 @@ export function RoomTimeline({
             onReplyClick={handleReplyClick}
             onReactionToggle={handleReactionToggle}
             onEditId={handleEdit}
+            threadRootId={threadRootId}
             reply={
               replyEventId && (
                 <Reply

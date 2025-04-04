@@ -9,7 +9,8 @@ import React, {
 } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
-import { EventType, IContent, MsgType, RelationType, Room } from 'matrix-js-sdk';
+import { EventType, MsgType, RelationType, Room } from 'matrix-js-sdk';
+import { RoomMessageEventContent } from 'matrix-js-sdk/src/types';
 import { ReactEditor } from 'slate-react';
 import { Transforms, Editor } from 'slate';
 import {
@@ -322,13 +323,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         return;
       }
 
-      if (plainText === '') return;
+      const body = plainText?.trim();
 
-      const body = plainText;
+      if (body === '') return;
+
       const formattedBody = customHtml;
       const mentionData = getMentions(mx, roomId, editor);
 
-      const content: IContent = {
+      const content: RoomMessageEventContent = {
         msgtype: msgType,
         body,
       };
@@ -350,13 +352,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             event_id: replyDraft.eventId,
           },
         };
+
         if (replyDraft.relation?.rel_type === RelationType.Thread) {
           content['m.relates_to'].event_id = replyDraft.relation.event_id;
           content['m.relates_to'].rel_type = RelationType.Thread;
-          content['m.relates_to'].is_falling_back = false;
+
+          // Set this so clients that don't deal with threads know to use the
+          // m.relates_to.
+          content['m.relates_to'].is_falling_back = true;
         }
       }
+
       mx.sendMessage(roomId, content);
+
       resetEditor(editor);
       resetEditorHistory(editor);
       setReplyDraft(undefined);
