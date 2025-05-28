@@ -9,6 +9,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
   Badge,
@@ -32,6 +33,7 @@ import { isKeyHotkey } from 'is-hotkey';
 import classNames from 'classnames';
 import { MatrixClient, Room } from 'matrix-js-sdk';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
+import fuzzyset from 'fuzzyset';
 
 import * as css from './EmojiBoard.css';
 import { EmojiGroupId, IEmoji, IEmojiGroup, emojiGroups, emojis } from '../../plugins/emoji';
@@ -683,30 +685,29 @@ export function EmojiBoard({
   const emojiPreviewRef = useRef<HTMLDivElement>(null);
   const emojiPreviewTextRef = useRef<HTMLParagraphElement>(null);
 
-  const searchList = useMemo(() => {
+  const [searchMap, shortcodeFuzzySet] = useMemo(() => {
     let list: Array<PackImageReader | IEmoji> = [];
     list = list.concat(imagePacks.flatMap((pack) => pack.getImages(usage)));
     if (emojiTab) list = list.concat(emojis);
-    return list;
+
+    const map = new Map(list.map((item) => [item.shortcode, item]));
+    return [map, fuzzyset(Array.from(map.keys()))];
   }, [emojiTab, usage, imagePacks]);
 
-  const [result, search, resetSearch] = useAsyncSearch(
-    searchList,
-    getEmoticonSearchStr,
-    SEARCH_OPTIONS
-  );
+  const [result, setResult] = useState();
 
   const searchedItems = result?.items.slice(0, 100);
 
   const handleOnChange: ChangeEventHandler<HTMLInputElement> = useDebounce(
-    useCallback(
-      (evt) => {
-        const term = evt.target.value;
-        if (term) search(term);
-        else resetSearch();
-      },
-      [search, resetSearch]
-    ),
+    useCallback((evt) => {
+      const term = evt.target.value;
+      if (term) {
+        const matches = shortcodeFuzzySet.get(term).slice(0, 1000);
+        setResult({ query: term, items: matches.map(([, shortcode]) => searchMap.get(shortcode)) });
+      } else {
+        setResult(undefined);
+      }
+    }, []),
     { wait: 200 }
   );
 
