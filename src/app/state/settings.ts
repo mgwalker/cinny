@@ -34,6 +34,7 @@ export interface Settings {
   legacyUsernameColor: boolean;
 
   showNotifications: boolean;
+  showNotificationBody: boolean;
   isNotificationSounds: boolean;
 
   developerTools: boolean;
@@ -65,6 +66,7 @@ const defaultSettings: Settings = {
   legacyUsernameColor: false,
 
   showNotifications: true,
+  showNotificationBody: false,
   isNotificationSounds: true,
 
   developerTools: false,

@@ -1,7 +1,7 @@
 import { useAtomValue } from 'jotai';
 import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { roomToUnreadAtom, unreadEqual, unreadInfoToUnread } from '../../state/room/roomToUnread';
 import LogoSVG from '../../../../public/res/svg/cinny.svg';
 import LogoUnreadSVG from '../../../../public/res/svg/cinny-unread.svg';
@@ -135,6 +135,7 @@ function MessageNotifications() {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
+  const [showNotificationBody] = useSetting(settingsAtom, 'showNotificationBody');
   const [notificationSound] = useSetting(settingsAtom, 'isNotificationSounds');
 
   const navigate = useNavigate();
@@ -146,17 +147,24 @@ function MessageNotifications() {
       roomName,
       roomAvatar,
       username,
+      body,
     }: {
       roomName: string;
       roomAvatar?: string;
       username: string;
       roomId: string;
       eventId: string;
+      body: string;
     }) => {
-      const noti = new window.Notification(roomName, {
+      const isDm = username === roomName;
+
+      const title = isDm ? `New message from ${username}` : `New message in ${roomName}`;
+
+      const noti = new window.Notification(title, {
         icon: roomAvatar,
         badge: roomAvatar,
-        body: `New inbox notification from ${username}`,
+        body: isDm ? body : `${username}: ${body}`,
+        renotify: true,
         silent: true,
       });
 
@@ -178,18 +186,12 @@ function MessageNotifications() {
   }, []);
 
   useEffect(() => {
-    const handleTimelineEvent: RoomEventHandlerMap[RoomEvent.Timeline] = (
-      mEvent,
-      room,
-      toStartOfTimeline,
-      removed,
-      data
-    ) => {
+    const handleTimelineEvent = (mEvent: MatrixEvent) => {
+      const room = mx.getRoom(mEvent.clearEvent.room_id);
       if (mx.getSyncState() !== 'SYNCING') return;
       if (document.hasFocus() && (selectedRoomId === room?.roomId || notificationSelected)) return;
       if (
         !room ||
-        !data.liveEvent ||
         room.isSpaceRoom() ||
         !isNotificationEvent(mEvent) ||
         getNotificationType(mx, room.roomId) === NotificationType.Mute
@@ -223,6 +225,7 @@ function MessageNotifications() {
           username: getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender,
           roomId: room.roomId,
           eventId,
+          body: showNotificationBody ? mEvent.clearEvent.content?.body : 'New message received',
         });
       }
 
@@ -230,9 +233,9 @@ function MessageNotifications() {
         playSound();
       }
     };
-    mx.on(RoomEvent.Timeline, handleTimelineEvent);
+    mx.on(MatrixEventEvent.Decrypted, handleTimelineEvent);
     return () => {
-      mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
+      mx.removeListener(MatrixEventEvent.Decrypted, handleTimelineEvent);
     };
   }, [
     mx,

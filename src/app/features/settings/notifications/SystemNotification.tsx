@@ -87,6 +87,10 @@ function EmailNotification() {
 export function SystemNotification() {
   const notifPermission = usePermissionState('notifications', getNotificationState());
   const [showNotifications, setShowNotifications] = useSetting(settingsAtom, 'showNotifications');
+  const [showNotificationBody, setShowNotificationBody] = useSetting(
+    settingsAtom,
+    'showNotificationBody'
+  );
   const [isNotificationSounds, setIsNotificationSounds] = useSetting(
     settingsAtom,
     'isNotificationSounds'
@@ -130,6 +134,17 @@ export function SystemNotification() {
                 onChange={setShowNotifications}
               />
             )
+          }
+        />
+        <SettingTile
+          title="Show message in notification"
+          description={<span>Show message body in notification windows.</span>}
+          after={
+            <Switch
+              disabled={notifPermission !== 'granted'}
+              value={showNotificationBody}
+              onChange={setShowNotificationBody}
+            />
           }
         />
       </SequenceCard>
