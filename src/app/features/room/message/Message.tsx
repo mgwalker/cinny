@@ -76,10 +76,10 @@ import { getMatrixToRoomEvent } from '../../../plugins/matrix-to';
 import { getViaServers } from '../../../plugins/via-servers';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../../hooks/useRoomPinnedEvents';
-import { StateEvent } from '../../../../types/matrix/room';
-import { getTagIconSrc, PowerLevelTag } from '../../../hooks/usePowerLevelTags';
+import { MemberPowerTag, StateEvent } from '../../../../types/matrix/room';
 import { PowerIcon } from '../../../components/power';
 import colorMXID from '../../../../util/colorMXID';
+import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -372,7 +372,7 @@ export const MessagePinItem = as<
     if (!isPinned && eventId) {
       pinContent.pinned.push(eventId);
     }
-    mx.sendStateEvent(room.roomId, StateEvent.RoomPinnedEvents, pinContent);
+    mx.sendStateEvent(room.roomId, StateEvent.RoomPinnedEvents as any, pinContent);
     onClose?.();
   };
 
@@ -670,16 +670,21 @@ export type MessageProps = {
   messageSpacing: MessageSpacing;
   onUserClick: MouseEventHandler<HTMLButtonElement>;
   onUsernameClick: MouseEventHandler<HTMLButtonElement>;
-  onReplyClick: MouseEventHandler<HTMLButtonElement>;
+  onReplyClick: (
+    ev: Parameters<MouseEventHandler<HTMLButtonElement>>[0],
+    startThread?: boolean
+  ) => void;
   onEditId?: (eventId?: string) => void;
   onReactionToggle: (targetEventId: string, key: string, shortcode?: string) => void;
   reply?: ReactNode;
   reactions?: ReactNode;
   hideReadReceipts?: boolean;
-  powerLevelTag?: PowerLevelTag;
+  showDeveloperTools?: boolean;
+  memberPowerTag?: MemberPowerTag;
   accessibleTagColors?: Map<string, string>;
   legacyUsernameColor?: boolean;
-  threadRootId?: string;
+  hour24Clock: boolean;
+  dateFormatString: string;
 };
 export const Message = as<'div', MessageProps>(
   (
@@ -705,9 +710,12 @@ export const Message = as<'div', MessageProps>(
       reply,
       reactions,
       hideReadReceipts,
-      powerLevelTag,
+      showDeveloperTools,
+      memberPowerTag,
       accessibleTagColors,
       legacyUsernameColor,
+      hour24Clock,
+      dateFormatString,
       children,
       threadRootId,
       ...props
@@ -727,11 +735,11 @@ export const Message = as<'div', MessageProps>(
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
     const senderAvatarMxc = getMemberAvatarMxc(room, senderId);
 
-    const tagColor = powerLevelTag?.color
-      ? accessibleTagColors?.get(powerLevelTag.color)
+    const tagColor = memberPowerTag?.color
+      ? accessibleTagColors?.get(memberPowerTag.color)
       : undefined;
-    const tagIconSrc = powerLevelTag?.icon
-      ? getTagIconSrc(mx, useAuthentication, powerLevelTag.icon)
+    const tagIconSrc = memberPowerTag?.icon
+      ? getPowerTagIconSrc(mx, useAuthentication, memberPowerTag.icon)
       : undefined;
 
     const usernameColor = legacyUsernameColor ? colorMXID(senderId) : tagColor;
@@ -773,7 +781,12 @@ export const Message = as<'div', MessageProps>(
               </Text>
             </>
           )}
-          <Time ts={mEvent.getTs()} compact={messageLayout === MessageLayout.Compact} />
+          <Time
+            ts={mEvent.getTs()}
+            compact={messageLayout === MessageLayout.Compact}
+            hour24Clock={hour24Clock}
+            dateFormatString={dateFormatString}
+          />
         </Box>
       </Box>
     );
@@ -860,6 +873,8 @@ export const Message = as<'div', MessageProps>(
       }, 100);
     };
 
+    const isThreadedMessage = mEvent.threadRootId !== undefined;
+
     return (
       <MessageBase
         className={classNames(css.MessageBase, className)}
@@ -924,18 +939,15 @@ export const Message = as<'div', MessageProps>(
                 >
                   <Icon src={Icons.ReplyArrow} size="100" />
                 </IconButton>
-                { /**/}
-                {threadRootId ? null : (
+                {!isThreadedMessage && (
                   <IconButton
-                    onClick={onReplyClick}
+                    onClick={(ev) => onReplyClick(ev, true)}
                     data-event-id={mEvent.getId()}
-                    data-relation-type={RelationType.Thread}
-                    data-thread-root-id={mEvent.getId()}
                     variant="SurfaceVariant"
                     size="300"
                     radii="300"
                   >
-                    <Icon className={ThreadIndicatorIcon} src={Icons.Message} />
+                    <Icon src={Icons.ThreadPlus} size="100" />
                   </IconButton>
                 )}
                 {canEditEvent(mx, mEvent) && onEditId && (
@@ -1017,6 +1029,27 @@ export const Message = as<'div', MessageProps>(
                               Reply
                             </Text>
                           </MenuItem>
+                          {!isThreadedMessage && (
+                            <MenuItem
+                              size="300"
+                              after={<Icon src={Icons.ThreadPlus} size="100" />}
+                              radii="300"
+                              data-event-id={mEvent.getId()}
+                              onClick={(evt: any) => {
+                                onReplyClick(evt, true);
+                                closeMenu();
+                              }}
+                            >
+                              <Text
+                                className={css.MessageMenuItemText}
+                                as="span"
+                                size="T300"
+                                truncate
+                              >
+                                Reply in Thread
+                              </Text>
+                            </MenuItem>
+                          )}
                           {canEditEvent(mx, mEvent) && onEditId && (
                             <MenuItem
                               size="300"
@@ -1045,7 +1078,13 @@ export const Message = as<'div', MessageProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          {showDeveloperTools && (
+                            <MessageSourceCodeItem
+                              room={room}
+                              mEvent={mEvent}
+                              onClose={closeMenu}
+                            />
+                          )}
                           <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           {canPinEvent && (
                             <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
@@ -1120,6 +1159,7 @@ export type EventProps = {
   canDelete?: boolean;
   messageSpacing: MessageSpacing;
   hideReadReceipts?: boolean;
+  showDeveloperTools?: boolean;
 };
 export const Event = as<'div', EventProps>(
   (
@@ -1131,6 +1171,7 @@ export const Event = as<'div', EventProps>(
       canDelete,
       messageSpacing,
       hideReadReceipts,
+      showDeveloperTools,
       children,
       ...props
     },
@@ -1207,7 +1248,13 @@ export const Event = as<'div', EventProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          {showDeveloperTools && (
+                            <MessageSourceCodeItem
+                              room={room}
+                              mEvent={mEvent}
+                              onClose={closeMenu}
+                            />
+                          )}
                           <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                         </Box>
                         {((!mEvent.isRedacted() && canDelete && !stateEvent) ||
