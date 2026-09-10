@@ -208,6 +208,7 @@ export function Home() {
   const searchSelected = useHomeSearchSelected();
   const noRoomToDisplay = rooms.length === 0;
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
+  const [roomAvatars] = useSetting(settingsAtom, 'roomAvatars');
 
   const sortedRooms = useMemo(() => {
     const items = Array.from(rooms).sort(
@@ -342,6 +343,7 @@ export function Home() {
                     >
                       <RoomNavItem
                         room={room}
+                        showAvatar={roomAvatars}
                         selected={selected}
                         linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
                         notificationMode={getRoomNotificationMode(

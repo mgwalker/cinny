@@ -24,6 +24,7 @@ export interface Settings {
   isMarkdown: boolean;
   editorToolbar: boolean;
   twitterEmoji: boolean;
+  roomAvatars: boolean;
   pageZoom: number;
   hideActivity: boolean;
 
@@ -58,6 +59,7 @@ const defaultSettings: Settings = {
   isMarkdown: true,
   editorToolbar: false,
   twitterEmoji: false,
+  roomAvatars: false,
   pageZoom: 100,
   hideActivity: false,
 

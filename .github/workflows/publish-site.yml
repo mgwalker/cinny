@@ -1,0 +1,38 @@
+name: deploy site
+
+on:
+  push:
+    branches:
+      - site
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: build and deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        id: checkout
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: build the site
+        run: |
+          npm ci
+          npm run build
+
+      - name: upload artifacts to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: deploy Pages
+        uses: actions/deploy-pages@v4
